@@ -13,7 +13,9 @@ import { authRateLimiter } from './middleware/rateLimiter';
 const app = express();
 
 // ── Global Middleware ──────────────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false
+}));
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json({ limit: '50kb' }));
