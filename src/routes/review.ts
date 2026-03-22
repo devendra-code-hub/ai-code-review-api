@@ -1,24 +1,25 @@
-import { Router, Response } from 'express';
+/// <reference types="node" />
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
 import { reviewRateLimiter } from '../middleware/rateLimiter';
 import { analyzeCode } from '../services/aiService';
+import { JwtPayload } from '../types';
 
 const router = Router();
 
 const reviewSchema = z.object({
-  code: z.string().min(10, 'Code must be at least 10 characters').max(10000),
+  code: z.string().min(10).max(10000),
   language: z.string().min(1).max(50),
   context: z.string().max(500).optional(),
 });
 
-// POST /api/review  — protected + rate limited
 router.post(
   '/',
   authenticate,
   reviewRateLimiter,
-  async (req: AuthRequest, res: Response): Promise<void> => {
-    const parsed = reviewSchema.safeParse(req.body);
+  async (req: Request, res: Response): Promise<void> => {
+    const parsed = reviewSchema.safeParse((req as any).body);
 
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
@@ -26,12 +27,12 @@ router.post(
     }
 
     const result = await analyzeCode(parsed.data);
-    res.json({ success: true, user: req.user?.email, review: result });
+    const user = (req as any).user as JwtPayload;
+    res.json({ success: true, user: user?.email, review: result });
   }
 );
 
-// GET /api/review/health — public
-router.get('/health', (_req, res) => {
+router.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'AI Code Review API' });
 });
 

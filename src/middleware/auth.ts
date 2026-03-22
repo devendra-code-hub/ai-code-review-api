@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
@@ -8,11 +9,11 @@ export interface AuthRequest extends Request {
 }
 
 export const authenticate = (
-  req: AuthRequest,
+  req: Request & { user?: JwtPayload },
   res: Response,
   next: NextFunction
 ): void => {
-  const authHeader = req.headers.authorization;
+  const authHeader = (req as any).headers?.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: 'No token provided' });
@@ -23,7 +24,7 @@ export const authenticate = (
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret) as JwtPayload;
-    req.user = decoded;
+    (req as any).user = decoded;
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
