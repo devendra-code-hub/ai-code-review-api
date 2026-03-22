@@ -18,6 +18,9 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json({ limit: '50kb' }));
 
+import path from 'path';
+app.use(express.static(path.join(__dirname, '../public')));
+
 // ── In-memory User Store (swap with MongoDB model later) ──────────────────
 const users: { id: string; email: string; password: string }[] = [];
 
