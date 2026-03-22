@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CodeSense — AI Code Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0a0a0f;
+  --surface:#111118;
+  --surface2:#1a1a24;
+  --border:#2a2a3a;
+  --accent:#00ff88;
+  --accent2:#ff6b35;
+  --accent3:#7c6af7;
+  --text:#f0f0f8;
+  --muted:#6b6b88;
+  --danger:#ff4444;
+  --mono:'Space Mono',monospace;
+  --sans:'Syne',sans-serif;
+}
+
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── BG GRID ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(0,255,136,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,255,136,.03) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;z-index:0;
+}
+
+/* ── NOISE OVERLAY ── */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0;opacity:.5;
+}
+
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:0 24px}
+
+/* ── HEADER ── */
+header{
+  padding:28px 0 20px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.logo{
+  font-family:var(--sans);font-weight:800;font-size:1.3rem;
+  letter-spacing:-0.03em;
+  display:flex;align-items:center;gap:10px;
+}
+.logo-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 12px var(--accent);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
+
+.badge{
+  font-family:var(--mono);font-size:.65rem;
+  padding:4px 10px;border-radius:20px;
+  border:1px solid var(--accent3);
+  color:var(--accent3);letter-spacing:.08em;
+}
+
+/* ── HERO ── */
+.hero{padding:60px 0 40px;text-align:center}
+.hero h1{
+  font-size:clamp(2.4rem,6vw,4.2rem);
+  font-weight:800;letter-spacing:-0.04em;
+  line-height:1.05;
+  background:linear-gradient(135deg,#fff 30%,var(--accent) 70%,var(--accent3) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+  margin-bottom:16px;
+  animation:fadeUp .7s ease both;
+}
+.hero p{
+  font-family:var(--mono);font-size:.9rem;color:var(--muted);
+  max-width:500px;margin:0 auto 40px;line-height:1.7;
+  animation:fadeUp .7s .15s ease both;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+/* ── AUTH TABS ── */
+.auth-section{
+  max-width:420px;margin:0 auto 50px;
+  animation:fadeUp .7s .25s ease both;
+}
+.tabs{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+.tab{
+  flex:1;padding:10px;text-align:center;cursor:pointer;
+  font-family:var(--mono);font-size:.8rem;letter-spacing:.06em;
+  color:var(--muted);background:transparent;border:none;
+  transition:all .2s;
+}
+.tab.active{background:var(--surface2);color:var(--accent);border-bottom:2px solid var(--accent)}
+
+.auth-form{display:flex;flex-direction:column;gap:10px}
+.auth-form input{
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:12px 14px;
+  font-family:var(--mono);font-size:.85rem;outline:none;
+  transition:border-color .2s;
+}
+.auth-form input:focus{border-color:var(--accent3)}
+.auth-form input::placeholder{color:var(--muted)}
+
+.btn{
+  padding:12px 20px;border-radius:8px;border:none;cursor:pointer;
+  font-family:var(--mono);font-size:.85rem;letter-spacing:.05em;
+  font-weight:700;transition:all .2s;
+}
+.btn-primary{
+  background:var(--accent);color:#000;
+}
+.btn-primary:hover{background:#00cc6a;transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,255,136,.25)}
+.btn-primary:active{transform:none}
+.btn-outline{
+  background:transparent;color:var(--text);
+  border:1px solid var(--border);
+}
+.btn-outline:hover{border-color:var(--muted)}
+
+.auth-status{
+  font-family:var(--mono);font-size:.75rem;text-align:center;
+  padding:8px;border-radius:6px;display:none;
+}
+.auth-status.success{background:rgba(0,255,136,.1);color:var(--accent);display:block}
+.auth-status.error{background:rgba(255,68,68,.1);color:var(--danger);display:block}
+
+/* ── LOGGED IN STATE ── */
+.user-bar{
+  display:none;align-items:center;justify-content:space-between;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:12px 16px;margin-bottom:20px;
+}
+.user-bar.visible{display:flex}
+.user-email{font-family:var(--mono);font-size:.8rem;color:var(--accent)}
+.btn-sm{padding:6px 12px;font-size:.75rem}
+
+/* ── MAIN EDITOR ── */
+.editor-section{
+  display:grid;grid-template-columns:1fr 1fr;gap:20px;
+  margin-bottom:30px;
+  animation:fadeUp .7s .35s ease both;
+}
+@media(max-width:700px){.editor-section{grid-template-columns:1fr}}
+
+.panel{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;overflow:hidden;
+}
+.panel-header{
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.panel-title{
+  font-family:var(--mono);font-size:.75rem;
+  letter-spacing:.1em;color:var(--muted);text-transform:uppercase;
+}
+.lang-select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);border-radius:6px;padding:4px 8px;
+  font-family:var(--mono);font-size:.75rem;outline:none;cursor:pointer;
+}
+
+textarea#codeInput{
+  width:100%;min-height:320px;resize:vertical;
+  background:transparent;border:none;outline:none;
+  color:#a8d8a8;font-family:var(--mono);font-size:.82rem;
+  line-height:1.7;padding:16px;
+  caret-color:var(--accent);
+}
+textarea#codeInput::placeholder{color:var(--muted);font-style:italic}
+
+.context-input{
+  width:100%;background:transparent;border:none;outline:none;
+  color:var(--text);font-family:var(--mono);font-size:.8rem;
+  padding:12px 16px;border-top:1px solid var(--border);
+  resize:none;min-height:60px;
+}
+.context-input::placeholder{color:var(--muted)}
+
+/* ── RESULT PANEL ── */
+.result-content{padding:16px;min-height:320px;overflow-y:auto}
+
+.placeholder-msg{
+  height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:12px;color:var(--muted);text-align:center;
+  font-family:var(--mono);font-size:.8rem;line-height:1.6;
+  padding:40px 20px;
+}
+.placeholder-icon{font-size:2.5rem;opacity:.4}
+
+/* score ring */
+.score-ring{
+  display:flex;align-items:center;gap:12px;
+  margin-bottom:16px;
+}
+.ring{
+  width:56px;height:56px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:1.1rem;
+  border:3px solid;
+  flex-shrink:0;
+}
+.ring.high{border-color:var(--accent);color:var(--accent);background:rgba(0,255,136,.08)}
+.ring.mid{border-color:#ffd700;color:#ffd700;background:rgba(255,215,0,.08)}
+.ring.low{border-color:var(--danger);color:var(--danger);background:rgba(255,68,68,.08)}
+
+.score-summary{font-size:.85rem;line-height:1.6;color:#ccc}
+
+.result-section{margin-bottom:14px}
+.result-label{
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
+}
+.dot-label{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-bugs{background:var(--danger)}
+.dot-security{background:var(--accent2)}
+.dot-suggestions{background:var(--accent3)}
+.dot-complexity{background:#ffd700}
+
+.tag-list{display:flex;flex-direction:column;gap:6px}
+.tag{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:8px 12px;
+  font-family:var(--mono);font-size:.75rem;line-height:1.5;color:#ddd;
+}
+.tag.empty{color:var(--muted);font-style:italic}
+
+.complexity-box{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;padding:10px 12px;
+  font-family:var(--mono);font-size:.78rem;color:#ddd;line-height:1.5;
+}
+
+/* ── SUBMIT BAR ── */
+.submit-bar{
+  display:flex;align-items:center;gap:14px;
+  animation:fadeUp .7s .45s ease both;
+}
+.btn-analyze{
+  flex:1;padding:15px;border-radius:10px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),#00cc6a);
+  color:#000;font-family:var(--mono);font-size:.9rem;font-weight:700;
+  letter-spacing:.06em;transition:all .25s;
+  position:relative;overflow:hidden;
+}
+.btn-analyze:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,255,136,.3)}
+.btn-analyze:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-analyze::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,transparent,rgba(255,255,255,.15),transparent);
+  transform:translateX(-100%);transition:transform .4s;
+}
+.btn-analyze:hover::after{transform:translateX(100%)}
+
+.counter{
+  font-family:var(--mono);font-size:.75rem;color:var(--muted);
+  white-space:nowrap;
+}
+
+/* ── LOADING ── */
+.loading-bar{
+  height:2px;background:var(--border);border-radius:1px;
+  margin-bottom:20px;overflow:hidden;display:none;
+}
+.loading-bar.active{display:block}
+.loading-progress{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent3),var(--accent));
+  animation:loadAnim 3s ease-in-out infinite;
+  border-radius:1px;
+}
+@keyframes loadAnim{0%{width:0%;margin-left:0}50%{width:70%;margin-left:10%}100%{width:0%;margin-left:100%}}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:24px;right:24px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:12px 18px;
+  font-family:var(--mono);font-size:.8rem;
+  transform:translateY(80px);opacity:0;
+  transition:all .3s ease;z-index:100;
+  max-width:320px;
+}
+.toast.show{transform:none;opacity:1}
+.toast.success{border-color:var(--accent);color:var(--accent)}
+.toast.error{border-color:var(--danger);color:var(--danger)}
+
+/* ── FOOTER ── */
+footer{
+  margin-top:60px;padding:24px 0;
+  border-top:1px solid var(--border);
+  text-align:center;
+  font-family:var(--mono);font-size:.72rem;color:var(--muted);
+}
+footer a{color:var(--accent3);text-decoration:none}
+footer a:hover{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <div class="logo-dot"></div>
+      CodeSense
+    </div>
+    <span class="badge">AI POWERED</span>
+  </header>
+
+  <section class="hero">
+    <h1>Review Code.<br/>Ship Better.</h1>
+    <p>Paste your code. Get instant AI-powered analysis — bugs, security, complexity, and refactor suggestions.</p>
+  </section>
+
+  <!-- AUTH -->
+  <div class="auth-section" id="authSection">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('login')">Login</button>
+      <button class="tab" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="loginForm" class="auth-form">
+      <input type="email" id="loginEmail" placeholder="email@example.com"/>
+      <input type="password" id="loginPassword" placeholder="password"/>
+      <button class="btn btn-primary" onclick="login()">Login →</button>
+    </div>
+
+    <div id="registerForm" class="auth-form" style="display:none">
+      <input type="email" id="regEmail" placeholder="email@example.com"/>
+      <input type="password" id="regPassword" placeholder="choose a password"/>
+      <button class="btn btn-primary" onclick="register()">Create Account →</button>
+    </div>
+
+    <div class="auth-status" id="authStatus"></div>
+  </div>
+
+  <!-- USER BAR -->
+  <div class="user-bar" id="userBar">
+    <span class="user-email" id="userEmail">●  not logged in</span>
+    <button class="btn btn-outline btn-sm" onclick="logout()">logout</button>
+  </div>
+
+  <!-- LOADING BAR -->
+  <div class="loading-bar" id="loadingBar">
+    <div class="loading-progress"></div>
+  </div>
+
+  <!-- EDITOR + RESULT -->
+  <div class="editor-section">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">// input</span>
+        <select class="lang-select" id="langSelect">
+          <option value="javascript">JavaScript</option>
+          <option value="typescript">TypeScript</option>
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="cpp">C++</option>
+          <option value="go">Go</option>
+          <option value="rust">Rust</option>
+          <option value="sql">SQL</option>
+        </select>
+      </div>
+      <textarea id="codeInput" placeholder="// Paste your code here...&#10;&#10;function example(data) {&#10;  // your code gets reviewed by AI&#10;  return data;&#10;}"></textarea>
+      <textarea class="context-input" id="contextInput" placeholder="Optional context: describe what this code is supposed to do..." rows="2"></textarea>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">// analysis</span>
+        <span class="panel-title" id="reviewTime"></span>
+      </div>
+      <div class="result-content" id="resultContent">
+        <div class="placeholder-msg">
+          <div class="placeholder-icon">⬡</div>
+          <div>Awaiting code review.<br/>Login and paste your code to begin.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBMIT -->
+  <div class="submit-bar">
+    <button class="btn-analyze" id="analyzeBtn" onclick="analyzeCode()" disabled>
+      ▶ Analyze Code
+    </button>
+    <span class="counter" id="charCount">0 / 10000 chars</span>
+  </div>
+
+  <footer>
+    Built by <a href="https://github.com/devendra-code-hub" target="_blank">Devendra Kumar Mahto</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/devendra-code-hub/ai-code-review-api" target="_blank">GitHub</a>
+    &nbsp;·&nbsp;
+    Powered by OpenRouter AI
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'https://ai-code-review-api-3.onrender.com';
+let token = localStorage.getItem('token') || '';
+let userEmail = localStorage.getItem('userEmail') || '';
+
+// ── init ──
+window.onload = () => {
+  if (token) showLoggedIn();
+  document.getElementById('codeInput').addEventListener('input', updateCounter);
+  updateCounter();
+};
+
+function updateCounter() {
+  const len = document.getElementById('codeInput').value.length;
+  document.getElementById('charCount').textContent = `${len} / 10000 chars`;
+  document.getElementById('analyzeBtn').disabled = !token || len < 10;
+}
+
+// ── tabs ──
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('loginForm').style.display = t === 'login' ? 'flex' : 'none';
+  document.getElementById('registerForm').style.display = t === 'register' ? 'flex' : 'none';
+  document.getElementById('authStatus').className = 'auth-status';
+}
+
+// ── auth ──
+async function register() {
+  const email = document.getElementById('regEmail').value;
+  const password = document.getElementById('regPassword').value;
+  if (!email || !password) return showAuthStatus('Fill in all fields', 'error');
+  try {
+    const res = await fetch(`${API}/api/auth/register`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password})
+    });
+    const data = await res.json();
+    if (!res.ok) return showAuthStatus(data.error || 'Registration failed', 'error');
+    token = data.token;
+    localStorage.setItem('token', token);
+    localStorage.setItem('userEmail', email);
+    userEmail = email;
+    showLoggedIn();
+    showAuthStatus('Account created!', 'success');
+    toast('Welcome! You are logged in ✓', 'success');
+  } catch { showAuthStatus('Network error', 'error'); }
+}
+
+async function login() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  if (!email || !password) return showAuthStatus('Fill in all fields', 'error');
+  try {
+    const res = await fetch(`${API}/api/auth/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password})
+    });
+    const data = await res.json();
+    if (!res.ok) return showAuthStatus(data.error || 'Login failed', 'error');
+    token = data.token;
+    localStorage.setItem('token', token);
+    localStorage.setItem('userEmail', email);
+    userEmail = email;
+    showLoggedIn();
+    toast('Logged in successfully ✓', 'success');
+  } catch { showAuthStatus('Network error', 'error'); }
+}
+
+function logout() {
+  token = ''; userEmail = '';
+  localStorage.removeItem('token');
+  localStorage.removeItem('userEmail');
+  document.getElementById('userBar').classList.remove('visible');
+  document.getElementById('authSection').style.display = 'block';
+  document.getElementById('analyzeBtn').disabled = true;
+  toast('Logged out', 'error');
+}
+
+function showLoggedIn() {
+  document.getElementById('authSection').style.display = 'none';
+  const bar = document.getElementById('userBar');
+  bar.classList.add('visible');
+  document.getElementById('userEmail').textContent = '● ' + userEmail;
+  updateCounter();
+}
+
+function showAuthStatus(msg, type) {
+  const el = document.getElementById('authStatus');
+  el.textContent = msg;
+  el.className = 'auth-status ' + type;
+}
+
+// ── analyze ──
+async function analyzeCode() {
+  const code = document.getElementById('codeInput').value;
+  const language = document.getElementById('langSelect').value;
+  const context = document.getElementById('contextInput').value;
+  if (!token) return toast('Please login first', 'error');
+  if (code.length < 10) return toast('Code too short', 'error');
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Analyzing...';
+  document.getElementById('loadingBar').classList.add('active');
+  document.getElementById('resultContent').innerHTML = `
+    <div class="placeholder-msg">
+      <div class="placeholder-icon" style="animation:pulse 1s infinite">⟳</div>
+      <div>AI is reviewing your code...<br/><span style="color:var(--muted);font-size:.7rem">This may take 5-10 seconds</span></div>
+    </div>`;
+
+  const start = Date.now();
+  try {
+    const res = await fetch(`${API}/api/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({code, language, context: context || undefined})
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 401) { logout(); return toast('Session expired, please login again', 'error'); }
+      throw new Error(data.error || 'Review failed');
+    }
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    document.getElementById('reviewTime').textContent = `${elapsed}s`;
+    renderResult(data.review);
+    toast('Review complete ✓', 'success');
+  } catch (e) {
+    document.getElementById('resultContent').innerHTML = `
+      <div class="placeholder-msg">
+        <div style="color:var(--danger);font-size:1.5rem">⚠</div>
+        <div style="color:var(--danger)">${e.message}</div>
+      </div>`;
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Analyze Code';
+    document.getElementById('loadingBar').classList.remove('active');
+  }
+}
+
+function renderResult(r) {
+  const score = r.score || 0;
+  const ringClass = score >= 7 ? 'high' : score >= 4 ? 'mid' : 'low';
+
+  const tagList = (arr, cls) => {
+    if (!arr || arr.length === 0)
+      return `<div class="tag empty">None found ✓</div>`;
+    return arr.map(t => `<div class="tag">${escHtml(t)}</div>`).join('');
+  };
+
+  document.getElementById('resultContent').innerHTML = `
+    <div class="score-ring">
+      <div class="ring ${ringClass}">${score}/10</div>
+      <div class="score-summary">${escHtml(r.summary || '')}</div>
+    </div>
+
+    <div class="result-section">
+      <div class="result-label">
+        <div class="dot-label dot-bugs"></div>Bugs Detected
+      </div>
+      <div class="tag-list">${tagList(r.bugs)}</div>
+    </div>
+
+    <div class="result-section">
+      <div class="result-label">
+        <div class="dot-label dot-security"></div>Security Issues
+      </div>
+      <div class="tag-list">${tagList(r.security)}</div>
+    </div>
+
+    <div class="result-section">
+      <div class="result-label">
+        <div class="dot-label dot-complexity"></div>Complexity
+      </div>
+      <div class="complexity-box">${escHtml(r.complexity || '')}</div>
+    </div>
+
+    <div class="result-section">
+      <div class="result-label">
+        <div class="dot-label dot-suggestions"></div>Suggestions
+      </div>
+      <div class="tag-list">${tagList(r.suggestions)}</div>
+    </div>
+  `;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
