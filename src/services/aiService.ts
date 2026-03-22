@@ -1,3 +1,6 @@
+/// <reference types="node" />
+
+import fetch from 'node-fetch';
 import { ReviewRequest, ReviewResponse } from '../types';
 import { config } from '../config';
 
